@@ -123,6 +123,96 @@ can_gas |>
 #swings/seasonlity so to speak in the data was not increased soly on level. There where periods with more and less which I think can tell us a lot.
 
 
+retail_ts |>
+  filter(series_id == "RSAFSNA") |>
+  mutate(log_sales = log(sales)) |>
+  pivot_longer(c(sales, log_sales), names_to = "scale", values_to = "value") |>
+  ggplot(aes(x = Month, y = value)) +
+  geom_line(color = "red") +
+  facet_wrap(~ scale, ncol = 1, scales = "free_y",
+             labeller = as_labeller(c(sales = "Millions of dollars",
+                                      log_sales = "Log sales"))) +
+  labs(
+    title = "U.S. Retail and Food Services Sales",
+    subtitle = "Logged vs unlogged, seasonally unadjusted",
+    x = NULL, y = NULL
+  ) +
+  theme_minimal()
+
+
+#The case for logging here is very weak as it does basically nothing so both are almost identical besides reducing Covids visual impact.
+
+#adding growth rates direct and logdiff
+can_gas <- can_gas |> 
+  mutate(
+    growth_direct = 100 * difference(Volume) / lag(Volume),
+    growth_logdiff = 100 * difference(log_volume)
+  )
+
+can_gas |> autoplot(growth_direct)
+
+#adding abs difference between direct and logdiff growth rates
+can_gas <- can_gas |> 
+  mutate(growth_gap = abs(growth_direct - growth_logdiff))
+
+can_gas |> autoplot(growth_gap)
+
+
+#SA vs. NSA growth rates 
+retail_ts <- retail_ts |> 
+  group_by_key() |> 
+  mutate(growth_mom = 100 * difference(log(sales))) |> 
+  ungroup()
+
+retail_ts |> 
+  autoplot(growth_mom) +
+  labs(
+    title = "Month-over-Month Growth: SA vs. NSA Retail Sales",
+    x = NULL, y = "Growth rate (%)", color = NULL) + 
+  theme_minimal()
+
+#3.3
+#The mom growth for the SA and NSA series are much different. The seasonally adjusted retail series is much quieter and has smaller spikes and dips. This is because retail sales change wildly over the coarse of a year so the series is very volatile. 
+#As mentioned before in 2.7b after adjusting we remove a lot of the noise and can see more of the underlying trend of growth over time.
+
+
+# ---- PART 4 -----
+
+#4.1a
+
+retail_ts |> 
+  filter(series_id == "RSAFSNA") |> 
+  gg_season(sales) +
+  labs(
+    title = "Seasonal Pattern in NSA Retail Sales", 
+    y = "Millions of dollars"
+  ) +
+  theme_minimal()
+
+#4.1b 
+retail_ts |> 
+  filter(series_id == "RSAFS") |> 
+  gg_season(sales) +
+  labs(
+    title = "Seasonal Pattern in SA Retail Sales", 
+    y = "Millions of dollars"
+  ) +
+  theme_minimal()
+
+#There is a big difference between the two seasonal plots here. We can see that after seasonally adjusting, the data does not contain the same patterns that we saw before. 
+
+
+#4.1c
+
+can_gas |>
+  gg_season(log_volume) +
+  labs(
+    title = "Seasonal Pattern in canadian oil produciton",
+    y = "log(Volume)"
+  ) +
+  theme_minimal()
+
+
 
 
 
