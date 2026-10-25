@@ -212,7 +212,123 @@ can_gas |>
   ) +
   theme_minimal()
 
+#I can see that Canadian gas production is this highest typically in January or December probobly due to travel and the highest energy demand becuase the cold weather etc.
+
+#4.2
+can_gas |> 
+  gg_subseries(log_volume) +
+  labs(
+    title = "Subseries Plot: Canadian Gas production",
+    y = "log(Volume)"
+  )
+
+
+#4.3a
+retail_nsa_x13 <- retail_ts |> 
+  filter(series_id == "RSAFSNA") |> 
+  model(x13 = X_13ARIMA_SEATS(sales)) |> 
+  components()
+
+retail_nsa_x13 |> autoplot()
+
+#In January its usually the highest and the its roughly about 15% above the trend in that month usually. The size of the swings to seem to change over time as they appear to have gotten smaller more recently.
+
+#4.3b
+sa_compare <- retail_nsa_x13 |>
+  as_tibble() |>
+  select(Month, mine = season_adjust) |>
+  left_join(
+    retail_ts |>
+      filter(series_id == "RSAFS") |>
+      as_tibble() |>
+      transmute(Month, census = sales),
+    by = "Month"
+  ) |>
+  mutate(pct_diff = 100 * (log(mine) - log(census)))
+
+sa_compare |>
+  ggplot(aes(x = Month, y = pct_diff)) +
+  geom_line() +
+  labs(
+    title = "My X-13 Seasonal Adjustment Minus the Census Bureau's",
+    x = NULL, y = "Difference (%)"
+  ) +
+  theme_minimal()
+
+#My adjustments match the feds adjustments well but during and a little bit after covid they differ wildly. I'm guessing they did something specfic or tuned something that made theirs much different than mine.
+
+
+#4.4
+can_gas_fit <- can_gas |> 
+  model(TSLM(log_volume ~ trend() + season()))
+
+report(can_gas_fit)
+
+can_gas_fit |> 
+  tidy() |> 
+  select(term, estimate, std.error, statistic, p.value) |> 
+  knitr::kable(digits = 3)
+
+#The estimated average monthly growth rate of gas production is 0.004 per month. The largest/most significant month was season()year6 wich was |-4.777|
+
+
+#4.4b
+can_gas_fit |>
+  augment() |>
+  ggplot(aes(x = Month)) +
+  geom_line(aes(y = log_volume, color = "Actual")) +
+  geom_line(aes(y = .fitted, color = "Fitted")) +
+  labs(title = "Linear Trend + Seasonal Dummies Fit: Canadian Gas Production",
+       y = "log(Volume)", color = NULL) +
+  theme_minimal()
+
+#The fitted line tracks the actual series relatively well. The general trend is kept while we do lose some detail.
+
+#4.4c
+can_gas_fit |> gg_tsresiduals()
+
+can_gas_fit |> 
+  augment() |> 
+  features(.innov, ljung_box, lag = 24)
+
+#The residuals do not look like white noise. There is somewhat of a pattern and a autocorrelation
+#There is definitely structure left in these residuals to be modeled further. The Ljung-Box test finds that we can reject the Null hypothesis at the 5% level becuase we have a p-value of 0.
+
+# ---- PART 5 -----
+
+gas_cv_fc <- can_gas |>
+  select(Month, Volume) |>
+  stretch_tsibble(.init = 240, .step = 1) |>
+  model(snaive = SNAIVE(Volume),
+        tslm   = TSLM(log(Volume) ~ trend() + season())) |>
+  forecast(h = 1)
+
+gas_cv_fc |>
+  accuracy(can_gas, measures = list(MAE = MAE, RMSE = RMSE))
 
 
 
+#5.2a
+errs <- gas_cv_fc |>
+  as_tibble() |>
+  left_join(as_tibble(can_gas) |> select(Month, actual = Volume),
+            by = "Month") |>
+  mutate(e = actual - .mean) |>
+  select(Month, .model, e) |>
+  pivot_wider(names_from = .model, values_from = e) |>
+  na.omit()
+
+forecast::dm.test(errs$snaive, errs$tslm, h = 1, power = 1)
+
+
+#5.3a
+gas_cv_fc <- can_gas |>
+  select(Month, Volume) |>
+  slide_tsibble(.init = 240, .step = 1) |>
+  model(snaive = SNAIVE(Volume),
+        tslm   = TSLM(log(Volume) ~ trend() + season())) |>
+  forecast(h = 1)
+
+gas_cv_fc |>
+  accuracy(can_gas, measures = list(MAE = MAE, RMSE = RMSE))
 
