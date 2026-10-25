@@ -1,10 +1,12 @@
 library(tidyverse)
-
+library(fpp3)
 
 # ---- PART 2 ----
 retail_raw <- read_csv("data/fredgraph.csv")
 
 head(retail_raw)
+
+#2.2a observation_date comes in as <date> so read_csv guessed right here.
 
 #fixing column types
 retail_raw <- read_csv("data/fredgraph.csv", na = ".", 
@@ -22,15 +24,14 @@ retail_raw_long <- retail_raw |>
 
 head(retail_raw_long)
 
-
-
-library(fpp3)
-
 retail_ts <- retail_raw_long |> 
   mutate(Month = yearmonth(observation_date)) |> 
   as_tsibble(index = Month, key = series_id)
 
 head(retail_ts)
+
+has_gaps(retail_ts)
+#no gaps in either series
 
 key_vars(canadian_gas)
 index_var(canadian_gas)
@@ -41,9 +42,13 @@ can_gas <- canadian_gas |>
 
 has_gaps(can_gas)
 
+head(can_gas)
+
 #making new copy of can gas keeping only recent dates
 can_gas_recent <- can_gas |> 
   filter(Month >= yearmonth("1990 Jan"))
+
+head(can_gas_recent)
 
 #exctacting parts of the date
 can_gas_recent <- can_gas_recent |> 
@@ -56,6 +61,8 @@ can_gas_recent |>
   as_tibble() |> 
   group_by(month) |> 
   summarize(avg_volume = mean(Volume))
+
+#2.6b Since 1990 December has the highest average production (17.1) and June has the lowest (14.9).
 
 #adding two columns based on month using yearmonth arithmetic
 can_gas_recent |> 
@@ -74,6 +81,9 @@ head(can_gas_q)
 #creating plot (shortcut)
 can_gas_q |> autoplot(Volume)
 
+#2.6d We sum because Volume is a flow, the total produced in the month, so a quarter's production is the total of its three months (the mean would give an average month instead).
+#The quarterly series is still seasonal, Q1 and Q4 are higher than Q2 and Q3, just less sharp than the monthly series.
+
 retail_ts |> autoplot(sales)
 
 retail_ts |>
@@ -87,23 +97,33 @@ retail_ts |>
 
 #2.7b
 #The following NSA plot has the same spike and dip seasonal pattern every year while the SA series does not have this same pattern. 
-#While the seasonality of the retail and food service sales is adjusted for in the RSAFS series the long term patter remains the same.
+#While the seasonality of the retail and food service sales is adjusted for in the RSAFS series the long term pattern remains the same.
 #We can see that during the great recession and Covid they have the same drops and the trend is almost identical.
 
-#plotting Canadian gas production
+#2.7c plotting Canadian gas production
 can_gas |> 
   autoplot(Volume) +
   labs(
     title = "Canadian gas production",
     x = "time",
-    y = "Volume in oil production"
+    y = "Volume (billion cubic metres)"
+  ) + theme_minimal()
+
+#2.7d same plot with a fitted line
+can_gas |> 
+  autoplot(Volume) +
+  labs(
+    title = "Canadian gas production",
+    x = "time",
+    y = "Volume (billion cubic metres)"
   ) + theme_minimal() + geom_smooth(method = 'lm')
 
-#2.7d
-#I included a fitted line to the canadian gas production series plot to understand the general trend of the data.
+#I added a fitted line (geom_smooth) to the Canadian gas production plot to see the general trend of the data.
 
 
 # --- PART 3 ----
+
+#3.1a The seasonal swings grow with the level up to about the mid 1980s, but then they shrink in the 1990s and 2000s even though production keeps rising. So it is not true over the whole sample.
 
 can_gas <- can_gas |> 
   mutate(log_volume = log(Volume))
@@ -113,14 +133,14 @@ can_gas |>
   labs(
     title = "Canadian gas production",
     x = "time",
-    y = "Volume in oil production"
+    y = "log(Volume)"
   ) + theme_minimal()
 
 
 #3.1b
-#After logging volume in the Canadaian gas production series we see that as discussed in clas the constant percent change became the absolute change
-#which reduced the swings in the middle of the data that we saw from before and the trend looks to be more consistent. I think that logs may actually be a poorer choice here becuase the 
-#swings/seasonlity so to speak in the data was not increased soly on level. There where periods with more and less which I think can tell us a lot.
+#After logging volume, a constant percent change becomes a constant absolute change, so the early fast growth flattens out and the trend looks more consistent.
+#The swings in the middle of the sample get smaller, but the early swings get bigger and the late ones are still small. I think logs are not a great fit here because the
+#seasonal swings did not grow only with the level. There were periods with more and less, which logs don't fix.
 
 
 retail_ts |>
@@ -140,7 +160,7 @@ retail_ts |>
   theme_minimal()
 
 
-#The case for logging here is very weak as it does basically nothing so both are almost identical besides reducing Covids visual impact.
+#3.1c The case for logging is stronger here than for can_gas. The December spikes grow steadily with the level of sales over the whole sample (about 62k in 1992 to 176k in 2025), which is the pattern logs are meant to fix. X-13 also chooses logs for this series in 4.3a.
 
 #adding growth rates direct and logdiff
 can_gas <- can_gas |> 
@@ -157,6 +177,8 @@ can_gas <- can_gas |>
 
 can_gas |> autoplot(growth_gap)
 
+#The log difference approximation is very good here, the gap is usually under 0.4 percentage points and only gets to about 3 in months with growth over 20%.
+
 
 #SA vs. NSA growth rates 
 retail_ts <- retail_ts |> 
@@ -172,7 +194,7 @@ retail_ts |>
   theme_minimal()
 
 #3.3
-#The mom growth for the SA and NSA series are much different. The seasonally adjusted retail series is much quieter and has smaller spikes and dips. This is because retail sales change wildly over the coarse of a year so the series is very volatile. 
+#The mom growth for the SA and NSA series are much different. The seasonally adjusted retail series is much quieter and has smaller spikes and dips. This is because NSA retail sales swing a lot over the course of a year (December spike, January drop) so the series is very volatile. 
 #As mentioned before in 2.7b after adjusting we remove a lot of the noise and can see more of the underlying trend of growth over time.
 
 
@@ -207,12 +229,12 @@ retail_ts |>
 can_gas |>
   gg_season(log_volume) +
   labs(
-    title = "Seasonal Pattern in canadian oil produciton",
+    title = "Seasonal Pattern in Canadian Gas Production",
     y = "log(Volume)"
   ) +
   theme_minimal()
 
-#I can see that Canadian gas production is this highest typically in January or December probobly due to travel and the highest energy demand becuase the cold weather etc.
+#Canadian gas production is typically highest in December and January and lowest in June, probably because of higher energy demand for heating in the cold weather.
 
 #4.2
 can_gas |> 
@@ -231,7 +253,7 @@ retail_nsa_x13 <- retail_ts |>
 
 retail_nsa_x13 |> autoplot()
 
-#In January its usually the highest and the its roughly about 15% above the trend in that month usually. The size of the swings to seem to change over time as they appear to have gotten smaller more recently.
+#December is usually the highest, roughly 15% above trend on average, and January/February are the lowest at about 10% below. The swings have gotten smaller over time, December went from about 21% above trend in 1992 to about 10% recently.
 
 #4.3b
 sa_compare <- retail_nsa_x13 |>
@@ -255,7 +277,7 @@ sa_compare |>
   ) +
   theme_minimal()
 
-#My adjustments match the feds adjustments well but during and a little bit after covid they differ wildly. I'm guessing they did something specfic or tuned something that made theirs much different than mine.
+#My adjustment matches the Census Bureau's well, mostly within about 0.2%. The biggest gaps are the Januaries after covid (2021-2024) at around 1.4-1.8%. I'm guessing they handled the covid outliers differently or tuned something that made theirs different than mine.
 
 
 #4.4
@@ -269,7 +291,7 @@ can_gas_fit |>
   select(term, estimate, std.error, statistic, p.value) |> 
   knitr::kable(digits = 3)
 
-#The estimated average monthly growth rate of gas production is 0.004 per month. The largest/most significant month was season()year6 wich was |-4.777|
+#The trend coefficient is 0.004 on log volume so gas production grows about 0.4% per month on average. The largest seasonal effect is June (season()year6), about 0.25 log points (roughly 22%) below January, with a t-stat of -4.78.
 
 
 #4.4b
@@ -282,7 +304,7 @@ can_gas_fit |>
        y = "log(Volume)", color = NULL) +
   theme_minimal()
 
-#The fitted line tracks the actual series relatively well. The general trend is kept while we do lose some detail.
+#The fitted line tracks the general trend and the seasonal pattern relatively well, but a straight line misses the shape of the trend, it is too high in the 1960s and 2000s and too low in the 1970s when growth was fastest and then slowed.
 
 #4.4c
 can_gas_fit |> gg_tsresiduals()
@@ -292,7 +314,7 @@ can_gas_fit |>
   features(.innov, ljung_box, lag = 24)
 
 #The residuals do not look like white noise. There is somewhat of a pattern and a autocorrelation
-#There is definitely structure left in these residuals to be modeled further. The Ljung-Box test finds that we can reject the Null hypothesis at the 5% level becuase we have a p-value of 0.
+#There is definitely structure left in these residuals to be modeled further. The Ljung-Box test (Q = 7774, 24 lags) rejects the null of no autocorrelation at the 5% level with a p-value of essentially 0.
 
 # ---- PART 5 -----
 
@@ -306,7 +328,7 @@ gas_cv_fc <- can_gas |>
 gas_cv_fc |>
   accuracy(can_gas, measures = list(MAE = MAE, RMSE = RMSE))
 
-
+#5.1a The first forecast evaluated is January 1980 and the last is February 2005. The seasonal naive is much more accurate (MAE 0.56, RMSE 0.70) than the TSLM (MAE 4.01, RMSE 4.36) and both metrics agree.
 
 #5.2a
 errs <- gas_cv_fc |>
@@ -320,11 +342,13 @@ errs <- gas_cv_fc |>
 
 forecast::dm.test(errs$snaive, errs$tslm, h = 1, power = 1)
 
+#DM = -31.28 with p-value < 2.2e-16. We reject that the two models are equally accurate, the negative statistic means the seasonal naive has the smaller absolute errors so it is significantly better.
+
 
 #5.3a
 gas_cv_fc <- can_gas |>
   select(Month, Volume) |>
-  slide_tsibble(.init = 240, .step = 1) |>
+  slide_tsibble(.size = 240, .step = 1) |>
   model(snaive = SNAIVE(Volume),
         tslm   = TSLM(log(Volume) ~ trend() + season())) |>
   forecast(h = 1)
@@ -332,3 +356,5 @@ gas_cv_fc <- can_gas |>
 gas_cv_fc |>
   accuracy(can_gas, measures = list(MAE = MAE, RMSE = RMSE))
 
+#The TSLM changed a lot more (MAE 4.01 to 2.09, RMSE 4.36 to 2.42) while the seasonal naive did not change at all since it only uses the same month last year.
+#As we saw in 4.4b a single straight trend over the whole sample misses how growth slowed, so dropping the old data lets the trend line fit the recent growth better.
