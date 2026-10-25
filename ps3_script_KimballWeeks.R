@@ -57,7 +57,21 @@ can_gas_recent |>
   group_by(month) |> 
   summarize(avg_volume = mean(Volume))
 
+#adding two columns based on month using yearmonth arithmetic
+can_gas_recent |> 
+  mutate(next_month = Month + 1,
+         same_month_last_year = Month - 12) |> 
+  head()
 
+
+can_gas_q <- can_gas |> 
+  filter(Month <= yearmonth("2004 Dec")) |> 
+  index_by(Quarter = yearquarter(Month)) |> 
+  summarize(Volume = sum(Volume))
+
+head(can_gas_q)
+
+can_gas_q |> autoplot(Volume)
 
 
 
