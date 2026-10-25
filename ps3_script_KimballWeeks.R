@@ -63,7 +63,7 @@ can_gas_recent |>
          same_month_last_year = Month - 12) |> 
   head()
 
-
+#doing analysis on quarters by using index_by which is group_by for time indexing
 can_gas_q <- can_gas |> 
   filter(Month <= yearmonth("2004 Dec")) |> 
   index_by(Quarter = yearquarter(Month)) |> 
@@ -71,7 +71,58 @@ can_gas_q <- can_gas |>
 
 head(can_gas_q)
 
+#creating plot (shortcut)
 can_gas_q |> autoplot(Volume)
+
+retail_ts |> autoplot(sales)
+
+retail_ts |>
+  autoplot(sales) +
+  labs(
+    title = "U.S. Retail and Food Services Sales",
+    subtitle = "Seasonally adjusted vs. not seasonally adjusted",
+    x = NULL, y = "Millions of dollars", color = NULL
+  ) +
+  theme_minimal()
+
+#2.7b
+#The following NSA plot has the same spike and dip seasonal pattern every year while the SA series does not have this same pattern. 
+#While the seasonality of the retail and food service sales is adjusted for in the RSAFS series the long term patter remains the same.
+#We can see that during the great recession and Covid they have the same drops and the trend is almost identical.
+
+#plotting Canadian gas production
+can_gas |> 
+  autoplot(Volume) +
+  labs(
+    title = "Canadian gas production",
+    x = "time",
+    y = "Volume in oil production"
+  ) + theme_minimal() + geom_smooth(method = 'lm')
+
+#2.7d
+#I included a fitted line to the canadian gas production series plot to understand the general trend of the data.
+
+
+# --- PART 3 ----
+
+can_gas <- can_gas |> 
+  mutate(log_volume = log(Volume))
+
+can_gas |> 
+  autoplot(log_volume) +
+  labs(
+    title = "Canadian gas production",
+    x = "time",
+    y = "Volume in oil production"
+  ) + theme_minimal()
+
+
+#3.1b
+#After logging volume in the Canadaian gas production series we see that as discussed in clas the constant percent change became the absolute change
+#which reduced the swings in the middle of the data that we saw from before and the trend looks to be more consistent. I think that logs may actually be a poorer choice here becuase the 
+#swings/seasonlity so to speak in the data was not increased soly on level. There where periods with more and less which I think can tell us a lot.
+
+
 
 
 
